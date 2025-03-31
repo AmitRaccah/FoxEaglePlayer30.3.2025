@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: aa5043f29c3b779498f5cd17f80ff19b
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 5571
+  packageName: Wooden Gate
+  packageVersion: draft
+  assetPath: Assets/Gate/Materials/Gates_Door_diff.mat
+  uploadId: 27218

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bc56d3f2655ba5d43824deb5b2dd4d1c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 5571
+  packageName: Wooden Gate
+  packageVersion: draft
+  assetPath: Assets/Gate/Materials/Gates_Holder_diff.mat
+  uploadId: 27218

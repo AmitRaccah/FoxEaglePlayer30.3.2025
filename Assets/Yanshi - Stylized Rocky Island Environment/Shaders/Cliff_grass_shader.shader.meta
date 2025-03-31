@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 317048a1ca839344f80242572b681aa2
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 271577
+  packageName: Yanshi - Stylized Rocky Island Environment
+  packageVersion: 1.0
+  assetPath: Assets/Yanshi - Stylized Rocky Island Environment/Shaders/Cliff_grass_shader.shader
+  uploadId: 725760
