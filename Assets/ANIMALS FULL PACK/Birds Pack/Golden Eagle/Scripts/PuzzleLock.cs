@@ -1,3 +1,4 @@
+﻿
 using UnityEngine;
 
 /// <summary>
@@ -108,3 +109,4 @@ public class PuzzleLock : MonoBehaviour
         }
     }
 }
+

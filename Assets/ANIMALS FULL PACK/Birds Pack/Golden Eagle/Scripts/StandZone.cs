@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using StarterAssets;
 using StarterAssets.Fox;
 
@@ -97,3 +97,4 @@ public class StandZone : MonoBehaviour
         }
     }
 }
+
