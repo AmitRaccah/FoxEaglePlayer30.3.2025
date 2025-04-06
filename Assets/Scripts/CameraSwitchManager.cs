@@ -169,6 +169,13 @@ public class CameraSwitchManager : MonoBehaviour
             var eagleFollow = item.controller.GetComponent<EagleFollowController>();
             if (eagleFollow != null)
                 eagleFollow.enabled = true;
+
+            // Turn off pickup
+
+            var pickup = item.controller.GetComponent<PickupInput>();
+            if (pickup != null)
+                pickup.enabled = false;
+
         }
     }
 
@@ -183,6 +190,13 @@ public class CameraSwitchManager : MonoBehaviour
             item.n_camera.gameObject.SetActive(true);
         if (item.controller != null)
             item.controller.enabled = true;
+
+        //Turn on Pickup
+        var pickup = item.controller.GetComponent<PickupInput>();
+        if (pickup != null)
+            pickup.enabled = true;
+
+
 #if ENABLE_INPUT_SYSTEM
         if (item.playerInput != null)
         {

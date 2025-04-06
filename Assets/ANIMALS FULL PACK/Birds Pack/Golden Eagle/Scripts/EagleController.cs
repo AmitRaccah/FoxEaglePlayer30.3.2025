@@ -14,79 +14,64 @@ public enum EagleAirState
 }
 
 /// <summary>
-/// Controls the eagle's direct flight, including input handling, altitude control,
-/// mouse look for yaw/pitch, banking with Q/E keys, animations, and pickup logic.
-/// Uses a separate PickupController for pickup functionality.
-/// 
-/// Relies on external enabling/disabling (e.g., via a manager) to toggle direct control.
+/// Controls the eagle's flight behavior (movement, altitude, mouse look, banking, animations).
+/// Uses continuous altitude sync so the eagle won't revert to old Y positions
+/// when switching control away and back again.
 /// </summary>
 [RequireComponent(typeof(Animator))]
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(BoxCollider))]
-[RequireComponent(typeof(PickupController))]
 public class EagleAlwaysAirController : MonoBehaviour
 {
     #region Inspector Fields
 
     [Header("Movement Settings")]
-    [Tooltip("Base movement speed in air.")]
     public float airMoveSpeed = 5f;
 
     [Header("Vertical Movement")]
-    [Tooltip("Force added to increase altitude when Space is pressed.")]
+    [Tooltip("Force used to ascend when Space is pressed.")]
     public float ascendForce = 10f;
     [Tooltip("Speed at which altitude decreases when Left Control is held.")]
     public float descendSpeed = 3f;
 
     [Header("Altitude Constraints")]
-    [Tooltip("Minimum altitude above ground.")]
     public float minAltitude = 2f;
-    [Tooltip("Maximum altitude above ground.")]
     public float maxAltitude = 50f;
-    [Tooltip("Layer mask used to detect ground.")]
+    [Tooltip("Ground detection layer mask.")]
     public LayerMask groundLayer;
-    [Tooltip("Fallback ground Y value if raycast fails.")]
+    [Tooltip("Fallback ground Y if raycast fails.")]
     public float fallbackGroundY = 0f;
 
     [Header("Rotation Settings")]
-    [Tooltip("Mouse look sensitivity.")]
     public float mouseSensitivity = 1f;
-    [Tooltip("Minimum pitch angle.")]
     public float pitchMin = -45f;
-    [Tooltip("Maximum pitch angle.")]
     public float pitchMax = 45f;
 
     [Header("Banking Settings")]
-    [Tooltip("Maximum roll (bank) angle.")]
     public float maxBankAngle = 90f;
-    [Tooltip("Smooth speed for banking (roll).")]
     public float bankSmoothSpeed = 5f;
 
     [Header("Animation Settings")]
-    [Tooltip("Crossfade time between animations.")]
     public float animationTransitionTime = 0.2f;
-
-    [Header("Pickup Settings")]
-    [Tooltip("Reference to the PickupController component for item pickup.")]
-    public PickupController pickupController;
 
     #endregion
 
     #region Private Fields
 
-    private Animator animator;
-    private Rigidbody rb;
+    private Animator _animator;
+    private Rigidbody _rigidbody;
 
-    private EagleAirState currentState = EagleAirState.Fly;
-    private bool isDirectControl = false; // True when this script is enabled as the active controller.
+    private bool _isDirectControl = false;
+    private bool _isMouseHeldPrev = false;
 
-    private bool isMouseHeldPrev = false;
-    private float targetAltitude;
-    private Vector3 pendingMovement = Vector3.zero;
+    private float _targetAltitude;
+    private Vector3 _pendingMovement = Vector3.zero;
+    private float _yaw, _pitch, _roll;
 
-    private float _yaw, _pitch, _roll; // Rotation components for mouse look and banking.
+    private bool _initialized = false;
+    private EagleAirState _currentState = EagleAirState.Fly;
 
-    private Dictionary<EagleAirState, string> stateAnimations = new Dictionary<EagleAirState, string>
+    private readonly Dictionary<EagleAirState, string> _stateAnimations = new Dictionary<EagleAirState, string>
     {
         { EagleAirState.Fly,             "Fly" },
         { EagleAirState.Glide,           "Glide" },
@@ -100,46 +85,45 @@ public class EagleAlwaysAirController : MonoBehaviour
 
     private void Awake()
     {
-        animator = GetComponent<Animator>();
-        animator.applyRootMotion = false;
+        _animator = GetComponent<Animator>();
+        _animator.applyRootMotion = false;
 
-        rb = GetComponent<Rigidbody>();
-        rb.useGravity = false;
-        rb.isKinematic = false;
+        _rigidbody = GetComponent<Rigidbody>();
+        _rigidbody.useGravity = false;
+        _rigidbody.isKinematic = false;
 
-        if (pickupController == null)
+        if (!_initialized)
         {
-            pickupController = GetComponent<PickupController>();
+            _initialized = true;
+
+            // Ensure the eagle spawns above minAltitude
+            AdjustToMinAltitude();
+
+            _targetAltitude = transform.position.y;
+
+            Vector3 euler = transform.rotation.eulerAngles;
+            _pitch = euler.x;
+            _yaw = euler.y;
+            _roll = euler.z;
+
+            PlayAnimation(EagleAirState.Fly);
+            ResetAnimatorParameters();
         }
-    }
-
-    private void Start()
-    {
-        targetAltitude = transform.position.y;
-        AdjustToMinAltitude();
-
-        Vector3 euler = transform.rotation.eulerAngles;
-        _pitch = euler.x;
-        _yaw = euler.y;
-        _roll = euler.z;
-
-        PlayAnimation(EagleAirState.Fly);
-        ResetAnimatorParameters();
     }
 
     private void OnEnable()
     {
-        isDirectControl = true;
+        _isDirectControl = true;
     }
 
     private void OnDisable()
     {
-        isDirectControl = false;
+        _isDirectControl = false;
     }
 
     private void Update()
     {
-        if (!isDirectControl) return;
+        if (!_isDirectControl) return;
 
         HandleInput();
         HandleAnimationTransitions();
@@ -150,17 +134,20 @@ public class EagleAlwaysAirController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!isDirectControl) return;
+        if (!_isDirectControl) return;
 
+        // Raycast to find ground level
         float groundY = GetGroundY(transform.position);
-        float clampedAltitude = Mathf.Clamp(targetAltitude, groundY + minAltitude, groundY + maxAltitude);
-        float newY = Mathf.Lerp(rb.position.y, clampedAltitude, 5f * Time.fixedDeltaTime);
+        // Clamp the altitude within minAltitude..maxAltitude from ground
+        float clampedAltitude = Mathf.Clamp(_targetAltitude, groundY + minAltitude, groundY + maxAltitude);
 
-        Vector3 newPos = rb.position + pendingMovement;
+        // Smoothly move the eagle
+        float newY = Mathf.Lerp(_rigidbody.position.y, clampedAltitude, 5f * Time.fixedDeltaTime);
+        Vector3 newPos = _rigidbody.position + _pendingMovement;
         newPos.y = newY;
-        rb.MovePosition(newPos);
 
-        pendingMovement = Vector3.zero;
+        _rigidbody.MovePosition(newPos);
+        _pendingMovement = Vector3.zero;
     }
 
     #endregion
@@ -177,23 +164,28 @@ public class EagleAlwaysAirController : MonoBehaviour
         else if (Input.GetKey(KeyCode.D)) horizontalInput = 1f;
         Vector3 strafeMovement = transform.right * (horizontalInput * airMoveSpeed * Time.deltaTime);
 
-        pendingMovement += forwardMovement + strafeMovement;
+        _pendingMovement += forwardMovement + strafeMovement;
 
-        // Ascend
-        if (Input.GetKeyDown(KeyCode.Space))
+        bool ascendHeld = Input.GetKey(KeyCode.Space);
+        bool descendHeld = Input.GetKey(KeyCode.LeftControl);
+
+        // If player is pressing ascend, increase altitude
+        if (ascendHeld)
         {
-            targetAltitude += ascendForce;
+            _targetAltitude += ascendForce * Time.deltaTime;
         }
-        // Descend
-        else if (Input.GetKey(KeyCode.LeftControl))
+        // If pressing descend, lower altitude
+        else if (descendHeld)
         {
-            targetAltitude -= descendSpeed * Time.deltaTime;
+            _targetAltitude -= descendSpeed * Time.deltaTime;
+        }
+        else
+        {
+            // IMPORTANT: When not pressing ascend/descend, set _targetAltitude 
+            // to the eagle's current Y, so it doesn't revert to an old stored altitude.
+            _targetAltitude = transform.position.y;
         }
     }
-
-    #endregion
-
-    #region Mouse Look and Banking
 
     private void HandleMouseLook()
     {
@@ -222,58 +214,55 @@ public class EagleAlwaysAirController : MonoBehaviour
 
     #endregion
 
-    #region Animation and Pickup Logic
+    #region Animation
 
     private void HandleAnimationTransitions()
     {
         bool isMouseHeld = Input.GetMouseButton(0);
 
-        if (isMouseHeld != isMouseHeldPrev)
+        if (isMouseHeld != _isMouseHeldPrev)
         {
             if (isMouseHeld)
             {
-                animator.SetBool("MouseHold", true);
+                _animator.SetBool("MouseHold", true);
             }
             else
             {
-                animator.SetBool("MouseHold", false);
-                animator.SetBool("MouseRelease", true);
-
-                pickupController?.TogglePickup();
+                _animator.SetBool("MouseHold", false);
+                _animator.SetBool("MouseRelease", true);
             }
-            isMouseHeldPrev = isMouseHeld;
+            _isMouseHeldPrev = isMouseHeld;
         }
         else
         {
-            animator.SetBool("MouseRelease", false);
+            _animator.SetBool("MouseRelease", false);
         }
 
-        animator.SetBool("isGliding", Input.GetKey(KeyCode.LeftControl));
+        _animator.SetBool("isGliding", Input.GetKey(KeyCode.LeftControl));
     }
 
     private void ResetAnimatorParameters()
     {
-        animator.SetBool("MouseHold", false);
-        animator.SetBool("MouseRelease", false);
-        animator.SetBool("isGliding", false);
-        animator.Play("Fly", 0, 0f);
+        _animator.SetBool("MouseHold", false);
+        _animator.SetBool("MouseRelease", false);
+        _animator.SetBool("isGliding", false);
+        _animator.Play("Fly", 0, 0f);
     }
 
     private void PlayAnimation(EagleAirState newState)
     {
-        if (newState == currentState)
-            return;
+        if (newState == _currentState) return;
 
-        if (!stateAnimations.TryGetValue(newState, out string animName))
-            return;
-
-        animator.CrossFadeInFixedTime(animName, animationTransitionTime);
-        currentState = newState;
+        if (_stateAnimations.TryGetValue(newState, out string animName))
+        {
+            _animator.CrossFadeInFixedTime(animName, animationTransitionTime);
+            _currentState = newState;
+        }
     }
 
     #endregion
 
-    #region Helper Methods
+    #region Helpers
 
     private float GetGroundY(Vector3 position)
     {
@@ -287,10 +276,11 @@ public class EagleAlwaysAirController : MonoBehaviour
         Vector3 pos = transform.position;
         float groundY = GetGroundY(pos);
         float minAllowed = groundY + minAltitude;
+
         if (pos.y < minAllowed)
         {
             pos.y = minAllowed;
-            targetAltitude = minAllowed;
+            _targetAltitude = minAllowed;
             transform.position = pos;
         }
     }

@@ -1,102 +1,95 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
-[RequireComponent(typeof(Collider))]
 public class PickupController : MonoBehaviour
 {
     [Header("Pickup Settings")]
-    public Transform holdPoint;
-    public float basePickupRange = 2f;
+    public float pickupRange = 2f;
     public LayerMask pickupLayer;
-    public float throwForce = 5f;
+    public Transform holdPoint;
 
-    private bool isCarryingItem = false;
-    private Rigidbody carriedItemRb = null;
-    private List<Collider> disabledColliders = new List<Collider>();
+    private GameObject heldItem;
+    private Collider[] heldItemColliders;
+    private Collider[] myColliders;
+    private readonly List<(Collider, Collider)> ignoredCollisions = new();
 
-    /// <summary>
-    /// Toggles the pickup state.
-    /// </summary>
+    private void Awake()
+    {
+        myColliders = GetComponentsInChildren<Collider>();
+    }
+
     public void TogglePickup()
     {
-        if (isCarryingItem)
-            ReleaseItem();
+        if (heldItem)
+        {
+            DropItem();
+        }
         else
-            TryPickupItem();
+        {
+            PickUpItem();
+        }
     }
 
-
-    /// <summary>
-    /// Attempts to pick up the nearest valid item.
-    /// </summary>
-    public void TryPickupItem()
+    private void PickUpItem()
     {
-        Transform pickupCenter = holdPoint ? holdPoint : transform;
-        Collider[] hits = Physics.OverlapSphere(pickupCenter.position, basePickupRange, pickupLayer, QueryTriggerInteraction.Collide);
-        Collider closest = null;
-        float minDist = Mathf.Infinity;
-        foreach (Collider col in hits)
+        Collider[] colliders = Physics.OverlapSphere(transform.position, pickupRange, pickupLayer, QueryTriggerInteraction.Collide);
+        if (colliders.Length == 0) return;
+
+        heldItem = colliders[0].gameObject;
+
+        Rigidbody rb = heldItem.GetComponent<Rigidbody>();
+        if (rb) rb.isKinematic = true;
+
+        heldItemColliders = heldItem.GetComponentsInChildren<Collider>();
+        foreach (Collider eagleCol in myColliders)
         {
-            // Skip self colliders.
-            if (col.transform.IsChildOf(transform) || col.gameObject == gameObject)
-                continue;
-            float distance = Vector3.Distance(pickupCenter.position, col.transform.position);
-            if (distance <= basePickupRange && distance < minDist)
+            foreach (Collider itemCol in heldItemColliders)
             {
-                minDist = distance;
-                closest = col;
+                Physics.IgnoreCollision(eagleCol, itemCol, true);
+                ignoredCollisions.Add((eagleCol, itemCol));
             }
         }
-        if (closest == null)
-            return;
-        if (closest.GetComponent<Rigidbody>() is not Rigidbody itemRb)
-            return;
 
-        carriedItemRb = itemRb;
-        carriedItemRb.isKinematic = true;
-        carriedItemRb.useGravity = false;
-        disabledColliders.Clear();
-        foreach (Collider col in carriedItemRb.GetComponentsInChildren<Collider>())
+        foreach (Collider col in heldItemColliders)
         {
-            if (col.enabled)
-            {
-                col.enabled = false;
-                disabledColliders.Add(col);
-            }
+            col.enabled = false;
         }
-        carriedItemRb.transform.SetParent(pickupCenter);
-        carriedItemRb.transform.localPosition = Vector3.zero;
-        carriedItemRb.transform.localRotation = Quaternion.identity;
-        isCarryingItem = true;
+
+        if (holdPoint)
+        {
+            heldItem.transform.SetParent(holdPoint);
+            heldItem.transform.localPosition = Vector3.zero;
+            heldItem.transform.localRotation = Quaternion.identity;
+        }
     }
 
-    /// <summary>
-    /// Releases the carried item.
-    /// </summary>
-    public void ReleaseItem()
+    private void DropItem()
     {
-        if (!isCarryingItem || carriedItemRb == null)
-            return;
-        carriedItemRb.transform.SetParent(null);
-        carriedItemRb.isKinematic = false;
-        carriedItemRb.useGravity = true;
-        foreach (Collider col in disabledColliders)
+        if (!heldItem) return;
+
+        heldItem.transform.SetParent(null);
+
+        Rigidbody rb = heldItem.GetComponent<Rigidbody>();
+        if (rb) rb.isKinematic = false;
+
+        foreach (Collider col in heldItemColliders)
         {
-            if (col != null)
-                col.enabled = true;
+            col.enabled = true;
         }
-        disabledColliders.Clear();
-        carriedItemRb.AddForce(transform.forward * throwForce, ForceMode.Impulse);
-        carriedItemRb = null;
-        isCarryingItem = false;
+
+        foreach (var pair in ignoredCollisions)
+        {
+            Physics.IgnoreCollision(pair.Item1, pair.Item2, false);
+        }
+        ignoredCollisions.Clear();
+
+        heldItem = null;
+        heldItemColliders = null;
     }
 
-#if UNITY_EDITOR
     private void OnDrawGizmosSelected()
     {
-        Transform pickupCenter = holdPoint ? holdPoint : transform;
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(pickupCenter.position, basePickupRange);
+        Gizmos.DrawWireSphere(transform.position, pickupRange);
     }
-#endif
 }
