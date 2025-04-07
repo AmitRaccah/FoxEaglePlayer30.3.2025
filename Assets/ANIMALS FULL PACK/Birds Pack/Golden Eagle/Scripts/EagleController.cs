@@ -89,8 +89,8 @@ public class EagleAlwaysAirController : MonoBehaviour
         _animator.applyRootMotion = false;
 
         _rigidbody = GetComponent<Rigidbody>();
-        _rigidbody.useGravity = false;
-        _rigidbody.isKinematic = false;
+        _rigidbody.useGravity = false;    // We'll manage altitude ourselves
+        _rigidbody.isKinematic = false;   // So collisions are detected, but we manually set position
 
         if (!_initialized)
         {
@@ -139,7 +139,11 @@ public class EagleAlwaysAirController : MonoBehaviour
         // Raycast to find ground level
         float groundY = GetGroundY(transform.position);
         // Clamp the altitude within minAltitude..maxAltitude from ground
-        float clampedAltitude = Mathf.Clamp(_targetAltitude, groundY + minAltitude, groundY + maxAltitude);
+        float clampedAltitude = Mathf.Clamp(
+            _targetAltitude,
+            groundY + minAltitude,
+            groundY + maxAltitude
+        );
 
         // Smoothly move the eagle
         float newY = Mathf.Lerp(_rigidbody.position.y, clampedAltitude, 5f * Time.fixedDeltaTime);
@@ -147,6 +151,13 @@ public class EagleAlwaysAirController : MonoBehaviour
         newPos.y = newY;
 
         _rigidbody.MovePosition(newPos);
+
+        // **Important fix**: Reset velocity so the physics engine
+        // won't keep pushing the eagle after a collision.
+        _rigidbody.linearVelocity = Vector3.zero;
+        _rigidbody.angularVelocity = Vector3.zero;
+
+        // Clear the pending movement for the next frame
         _pendingMovement = Vector3.zero;
     }
 
@@ -181,7 +192,7 @@ public class EagleAlwaysAirController : MonoBehaviour
         }
         else
         {
-            // IMPORTANT: When not pressing ascend/descend, set _targetAltitude 
+            // IMPORTANT: When not pressing ascend/descend, set _targetAltitude
             // to the eagle's current Y, so it doesn't revert to an old stored altitude.
             _targetAltitude = transform.position.y;
         }
