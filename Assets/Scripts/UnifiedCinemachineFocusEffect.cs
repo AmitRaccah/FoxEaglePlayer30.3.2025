@@ -22,6 +22,8 @@ public class RightClickZoomSwitch : MonoBehaviour
         public int playerID;                     // 1 = Player, 2 = Fox, 3 = Eagle, etc.
         public CinemachineVirtualCamera normalCam;
         public CinemachineVirtualCamera zoomCam;
+        public AudioSource searchModeAudioSource;
+
     }
 
     [Tooltip("List of each player's normal & zoom cameras, mapped by playerID.")]
@@ -71,6 +73,12 @@ public class RightClickZoomSwitch : MonoBehaviour
 
             if (activeConfig.zoomCam != null)
                 activeConfig.zoomCam.gameObject.SetActive(true);
+
+            //Sounds
+            if (activeConfig.searchModeAudioSource != null && !activeConfig.searchModeAudioSource.isPlaying)
+            {
+                activeConfig.searchModeAudioSource.Play();
+            }
         }
         else
         {
@@ -80,6 +88,13 @@ public class RightClickZoomSwitch : MonoBehaviour
 
             if (activeConfig.normalCam != null)
                 activeConfig.normalCam.gameObject.SetActive(true);
+
+            //Sounds Off
+            if (activeConfig.searchModeAudioSource != null && activeConfig.searchModeAudioSource.isPlaying)
+            {
+                activeConfig.searchModeAudioSource.Stop();
+            }
+
         }
     }
 }

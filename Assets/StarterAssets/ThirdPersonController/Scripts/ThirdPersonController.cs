@@ -107,6 +107,9 @@ namespace StarterAssets
         private const float _threshold = 0.01f;
         private bool _hasAnimator;
 
+        private bool searchMode = false;
+
+
         private bool IsCurrentDeviceMouse
         {
             get
@@ -155,6 +158,22 @@ namespace StarterAssets
             JumpAndGravity();
             GroundedCheck();
             Move();
+
+            if (Mouse.current == null)
+                return;
+
+            if (Mouse.current.rightButton.wasPressedThisFrame)
+            {
+                searchMode = true;
+                _animator.SetBool("SearchMode", searchMode);
+            }
+
+            if (Mouse.current.rightButton.wasReleasedThisFrame)
+            {
+                searchMode = false;
+                _animator.SetBool("SearchMode", searchMode);
+            }
+
         }
 
         private void LateUpdate()

@@ -19,6 +19,11 @@ public class CameraSwitchManager : MonoBehaviour
     [Tooltip("The ID of the currently active player (1 = Player1, 2 = Fox, 0 = Eagle).")]
     public int ActivePlayer { get; private set; }
 
+    [Header("Audio Settings")]
+    [Tooltip("An AudioSource on this manager (set in the Inspector) for playing switch sounds.")]
+    [SerializeField] private AudioSource audioSource;
+
+
     // Cached reference to Player1's StarterAssetsInputs (used to reset movement)
 
     private bool initialized;
@@ -221,6 +226,12 @@ public class CameraSwitchManager : MonoBehaviour
         }
         ActivePlayer = item.playerID;
         Debug.Log($"[CameraSwitchManager] Switched to playerID = {item.playerID}, controller = {item.controller}");
+
+        if (audioSource != null && item.switchSound != null)
+        {
+            audioSource.PlayOneShot(item.switchSound);
+        }
+
     }
 }
 
@@ -235,4 +246,5 @@ public class ControllerItem
     public PlayerInput playerInput;
 #endif
     public KeyCode key;
+    public AudioClip switchSound;
 }
