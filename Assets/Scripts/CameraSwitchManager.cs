@@ -8,6 +8,7 @@ using UnityEngine.InputSystem;
 #endif
 using StarterAssets;
 using StarterAssets.Fox;
+using static UnityEditor.Progress;
 
 public class CameraSwitchManager : MonoBehaviour
 {
@@ -22,6 +23,13 @@ public class CameraSwitchManager : MonoBehaviour
     [Header("Audio Settings")]
     [Tooltip("An AudioSource on this manager (set in the Inspector) for playing switch sounds.")]
     [SerializeField] private AudioSource audioSource;
+
+    [Header("Companion Recall Sound")]
+    [SerializeField] private AudioClip companionRecallClip;
+
+    [Header("Companion StayInPlace Sound")]
+    [SerializeField] private AudioClip companionStayClip;
+
 
 
     // Cached reference to Player1's StarterAssetsInputs (used to reset movement)
@@ -64,16 +72,66 @@ public class CameraSwitchManager : MonoBehaviour
         {
             if (Input.GetKeyDown(controllerItem.key))
             {
+                // If already controlling this character
+                if (controllerItem.playerID == ActivePlayer)
+                {
+                    // If it's the main player, play "Stay here" voice line
+                    if (ActivePlayer == 1 && audioSource != null && companionStayClip != null)
+                    {
+                        foreach (var item in controllerItemArray)
+                        {
+                            var foxFollow = item.controller.GetComponent<FoxFollowController>();
+                            if (foxFollow != null)
+                                foxFollow.enabled = false;
+
+                            var eagleFollow = item.controller.GetComponent<EagleFollowController>();
+                            if (eagleFollow != null)
+                                eagleFollow.enabled = false;
+                        }
+                        audioSource.PlayOneShot(companionStayClip);
+                        Debug.Log("[CameraSwitchManager] Player said: 'Stay here until I’ll tell you otherwise'");
+                    }
+                    // No switch needed
+                    break;
+                }
+                // Regular switch
                 TurnOffAllItems();
-                // No delay on switch – immediate switch.
                 SwitchToPlayer(controllerItem);
                 break;
             }
         }
+
+        // Manual companion return (key 4)
+        if (Input.GetKeyDown(KeyCode.Alpha4) && ActivePlayer == 1)
+        {
+            foreach (var item in controllerItemArray)
+            {
+                if (item.playerID == 2) // Fox
+                {
+                    var foxFollow = item.controller.GetComponent<FoxFollowController>();
+                    if (foxFollow != null)
+                        foxFollow.enabled = true;
+                }
+                else if (item.playerID == 3) // Eagle
+                {
+                    var eagleFollow = item.controller.GetComponent<EagleFollowController>();
+                    if (eagleFollow != null)
+                        eagleFollow.enabled = true;
+                }
+            }
+
+            if (audioSource != null && companionRecallClip != null)
+            {
+                audioSource.PlayOneShot(companionRecallClip);
+            }
+
+            Debug.Log("[CameraSwitchManager] Companions recalled with key 4.");
+        }
+
     }
 
 
-    
+
     /// <summary>
     /// Returns the currently active normal camera (n_camera) from the active ControllerItem.
     /// If none is active, returns null.
@@ -170,10 +228,10 @@ public class CameraSwitchManager : MonoBehaviour
             // Re-enable follow behavior on inactive characters.
             var foxFollow = item.controller.GetComponent<FoxFollowController>();
             if (foxFollow != null)
-                foxFollow.enabled = true;
+                foxFollow.enabled = false;
             var eagleFollow = item.controller.GetComponent<EagleFollowController>();
             if (eagleFollow != null)
-                eagleFollow.enabled = true;
+                eagleFollow.enabled = false;
 
             // Turn off pickup
 

@@ -1,6 +1,8 @@
-using UnityEngine;
+﻿using UnityEngine;
 using StarterAssets;
 using StarterAssets.Fox;
+using System.Collections;
+
 
 public class FoxFollowController : MonoBehaviour
 {
@@ -30,6 +32,9 @@ public class FoxFollowController : MonoBehaviour
 
     [Header("Miscellaneous Settings")]
     [SerializeField] private float gizmoSize = 0f;
+
+    [SerializeField] private ParticleSystem teleportFireEffect;
+
 
     private FoxController foxController;
     private StarterAssetsInputs foxInputs;
@@ -101,9 +106,21 @@ public class FoxFollowController : MonoBehaviour
 
     private void TeleportToTarget()
     {
+
         transform.position = target.position;
+        //TP particle
+        if (teleportFireEffect != null)
+        {
+            teleportFireEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            teleportFireEffect.Play();
+            StartCoroutine(DisableEffectAfterDelay(teleportFireEffect, 1f)); // כמה זמן שהאפקט נמשך
+
+        }
+
+
         transform.rotation = target.rotation;
         foxInputs.move = Vector2.zero;
+
     }
 
     private void FollowTargetBehavior()
@@ -135,4 +152,15 @@ public class FoxFollowController : MonoBehaviour
         }
         return desiredDir;
     }
+    private IEnumerator DisableEffectAfterDelay(ParticleSystem effect, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (effect != null)
+        {
+            effect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+    }
+
+
 }
