@@ -12,12 +12,13 @@ public class SoundTriggerZone : MonoBehaviour
 
     private IEnumerator WalkOnly()
     {
-        playerInputs.sprint = false;
+        playerInputs.canSprint = false;
         while (audioSource.isPlaying)
         {
             yield return null;
         }
-        playerInputs.sprint = true;
+        Destroy(gameObject);
+        playerInputs.canSprint = true;
     }
     private void OnTriggerEnter(Collider other)
     {
@@ -29,8 +30,9 @@ public class SoundTriggerZone : MonoBehaviour
                 {
                     audioSource.Play();
                     StartCoroutine(WalkOnly());
-                 //   Destroy(gameObject);
-                 //   break;
+                    //playerInputs.canSprint = true;
+                    
+                    break;
                 }
             }
 
