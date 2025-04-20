@@ -1,186 +1,235 @@
-using StarterAssets.Fox;
+﻿using StarterAssets.Fox;
 using StarterAssets;
 using UnityEngine;
+using System.Collections;
 
 /// <summary>
-/// Controls a parallax puzzle where each puzzle piece moves based on the active character�s
-/// distance from a designated "correct zone." When the character is near the zone, pieces are displaced
-/// based on a mix of their disassembled offsets and a parallax offset derived from the character�s position.
-/// Once the puzzle is solved, the pieces snap into their final positions and the effect is disabled.
+/// Controls a parallax puzzle where each puzzle piece moves based on the active character’s
+/// distance from a designated "correct zone." 
+/// When the player is outside the zone, a broken static object remains visible.
+/// Upon entering the zone, the broken object hides, multiple entry particle effects play once,
+/// and the dynamic parallax pieces appear and interpolate from their disassembled offsets
+/// back toward their assembled positions. Once fully centered, the puzzle auto‑solves,
+/// snapping pieces into place, destroying any remaining entry effects, and disabling further updates.
 /// </summary>
 public class ParallaxPuzzleController : MonoBehaviour
 {
-    [Header("Puzzle Pieces Settings")]
-    [Tooltip("Transforms for all puzzle pieces.")]
+    [Header("Broken Object")]
+    [Tooltip("Root GameObject whose children are the broken pieces on the floor.")]
+    [SerializeField] private GameObject brokenRoot;
+
+    [Header("Parallax Pieces")]
+    [Tooltip("Each individual parallax‑driven piece (not children of brokenRoot).")]
     [SerializeField] private Transform[] puzzlePieces;
-    [Tooltip("Offsets for each piece when the puzzle is disassembled.")]
+    [Tooltip("Offsets for each piece when disassembled.")]
     [SerializeField] private Vector3[] disassembledOffsets;
-    [Tooltip("Parallax multipliers for each piece (higher values indicate more movement).")]
-    [SerializeField] private float[] parallaxMultipliers;
 
     [Header("Zone Settings")]
     [Tooltip("Transform marking the center of the correct zone.")]
     [SerializeField] private Transform correctZoneCenter;
-    [Tooltip("Radius within which puzzle pieces respond to character movement.")]
+    [Tooltip("Radius within which puzzle pieces respond.")]
     [SerializeField] private float influenceRadius = 10f;
 
     [Header("Transition Settings")]
-    [Tooltip("Speed at which puzzle pieces interpolate toward their assembled positions.")]
+    [Tooltip("Speed of interpolation towards assembled positions.")]
     [SerializeField] private float reassembleSpeed = 5f;
 
-    [HideInInspector] public bool inCorrectZone = false;
-    [HideInInspector] public bool puzzleSolved = false;
+    [Header("Entry Effects")]
+    [Tooltip("ParticleSystems to play once when entering the parallax zone.")]
+    [SerializeField] private ParticleSystem[] entryEffects;
 
-    // Internal cached assembled positions.
+    // Cached final local positions for each piece
     private Vector3[] assembledPositions;
-    // Used to detect changes in the active character's tag.
+
+    // State flags
+    private bool inZone = false;
+    private bool puzzleSolved = false;
+
+    // Remember which character was last active (for snapping on switch)
     private string lastActiveTag = "";
 
     private void Start()
     {
-        if (puzzlePieces == null || puzzlePieces.Length == 0)
+        // Show broken object and hide all parallax pieces initially
+        if (brokenRoot != null) brokenRoot.SetActive(true);
+        foreach (var piece in puzzlePieces)
+            piece.gameObject.SetActive(false);
+
+        // Validate arrays
+        if (puzzlePieces.Length == 0 || disassembledOffsets.Length != puzzlePieces.Length)
         {
+            Debug.LogError("ParallaxPuzzleController: puzzlePieces and disassembledOffsets must match.");
             enabled = false;
             return;
-        }
-        if (disassembledOffsets == null || disassembledOffsets.Length != puzzlePieces.Length)
-        {
-            enabled = false;
-            return;
-        }
-        if (parallaxMultipliers == null || parallaxMultipliers.Length != puzzlePieces.Length)
-        {
-            parallaxMultipliers = new float[puzzlePieces.Length];
-            for (int i = 0; i < puzzlePieces.Length; i++)
-                parallaxMultipliers[i] = 1f;
         }
 
+        // Cache assembled positions
         assembledPositions = new Vector3[puzzlePieces.Length];
         for (int i = 0; i < puzzlePieces.Length; i++)
-        {
             assembledPositions[i] = puzzlePieces[i].localPosition;
-        }
     }
 
     private void Update()
     {
-        if (puzzleSolved)
-            return;
+        if (puzzleSolved) return;
 
         GameObject activeObj = GetActiveGround();
-        if (activeObj == null)
-            return;
+        if (activeObj == null) return;
 
-        if (inCorrectZone)
+        float distance = Vector3.Distance(activeObj.transform.position, correctZoneCenter.position);
+        bool nowInZone = distance <= influenceRadius;
+
+        // Enter zone
+        if (nowInZone && !inZone)
         {
-            AssemblePuzzlePieces();
-            puzzleSolved = true;
-            enabled = false;
+            inZone = true;
+            PlayEntryEffects();
+
+            // Hide broken object, show parallax pieces
+            if (brokenRoot != null) brokenRoot.SetActive(false);
+            foreach (var piece in puzzlePieces)
+                piece.gameObject.SetActive(true);
+        }
+        // Exit zone
+        else if (!nowInZone && inZone)
+        {
+            inZone = false;
+
+            // Show broken object, hide parallax pieces
+            if (brokenRoot != null) brokenRoot.SetActive(true);
+            foreach (var piece in puzzlePieces)
+                piece.gameObject.SetActive(false);
             return;
         }
 
-        float distanceToZone = Vector3.Distance(activeObj.transform.position, correctZoneCenter.position);
-
-        if (distanceToZone > influenceRadius)
+        // Parallax movement while in zone
+        if (inZone)
         {
-            // Gradually reassemble puzzle pieces.
-            for (int i = 0; i < puzzlePieces.Length; i++)
+            // Solve when very close
+            if (distance <= 0.01f)
             {
-                puzzlePieces[i].localPosition = Vector3.Lerp(puzzlePieces[i].localPosition, assembledPositions[i], Time.deltaTime * reassembleSpeed);
+                AssemblePuzzlePieces();
+                puzzleSolved = true;
+                DestroyEntryEffects();
+                return;
             }
-        }
-        else
-        {
-            // Compute progress (0 when far, 1 when at center).
-            float progress = 1f - Mathf.Clamp01(distanceToZone / influenceRadius);
-            Vector3 controllerOffset = activeObj.transform.position - correctZoneCenter.position;
+
+            // Compute progress (0 at edge, 1 at center)
+            float progress = 1f - Mathf.Clamp01(distance / influenceRadius);
+            Vector3 offset = activeObj.transform.position - correctZoneCenter.position;
+
             for (int i = 0; i < puzzlePieces.Length; i++)
             {
-                Vector3 targetPos = CalculateTargetPosition(i, controllerOffset, progress);
+                Vector3 baseOffset = Vector3.Lerp(disassembledOffsets[i], Vector3.zero, progress);
+                Vector3 parallaxOffset = offset * (1f - progress);
+                Vector3 targetPos = assembledPositions[i] + baseOffset + parallaxOffset;
+
                 if (activeObj.tag != lastActiveTag)
                     puzzlePieces[i].localPosition = targetPos;
                 else
-                    puzzlePieces[i].localPosition = Vector3.Lerp(puzzlePieces[i].localPosition, targetPos, Time.deltaTime * reassembleSpeed);
+                    puzzlePieces[i].localPosition = Vector3.Lerp(
+                        puzzlePieces[i].localPosition,
+                        targetPos,
+                        Time.deltaTime * reassembleSpeed
+                    );
             }
+
+            lastActiveTag = activeObj.tag;
         }
-        lastActiveTag = activeObj.tag;
     }
 
     /// <summary>
-    /// Computes the target local position for a puzzle piece based on its disassembled offset,
-    /// parallax multiplier, and the active character's offset.
+    /// Plays each entry effect once and schedules its disable.
     /// </summary>
-    private Vector3 CalculateTargetPosition(int index, Vector3 controllerOffset, float progress)
+    private void PlayEntryEffects()
     {
-        Vector3 baseOffset = Vector3.Lerp(disassembledOffsets[index], Vector3.zero, progress);
-        Vector3 parallaxOffset = controllerOffset * parallaxMultipliers[index] * (1f - progress);
-        return assembledPositions[index] + baseOffset + parallaxOffset;
+        foreach (var effect in entryEffects)
+        {
+            if (effect == null) continue;
+            effect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            effect.Play();
+            StartCoroutine(DisableEffectAfterDelay(effect, effect.main.duration + effect.main.startLifetime.constantMax));
+        }
     }
 
     /// <summary>
-    /// Instantly assembles all puzzle pieces to their final positions.
+    /// Snaps all pieces to their assembled positions immediately.
     /// </summary>
     private void AssemblePuzzlePieces()
     {
         for (int i = 0; i < puzzlePieces.Length; i++)
-        {
             puzzlePieces[i].localPosition = assembledPositions[i];
-        }
     }
 
     /// <summary>
-    /// Retrieves the active ground character based on the active player ID from CameraSwitchManager.
+    /// Destroys all entry effect GameObjects to ensure no particles remain.
     /// </summary>
-    private GameObject GetActiveGround()
+    private void DestroyEntryEffects()
     {
-        if (CameraSwitchManager.Instance == null)
-            return null;
-
-        int activePlayer = CameraSwitchManager.Instance.ActivePlayer;
-        switch (activePlayer)
+        foreach (var effect in entryEffects)
         {
-            case 1:
-                GameObject player = GameObject.FindGameObjectWithTag("Player");
-                if (player != null && player.GetComponentInParent<ThirdPersonController>()?.enabled == true)
-                    return player;
-                break;
-            case 2:
-                GameObject fox = GameObject.FindGameObjectWithTag("Fox");
-                if (fox != null && fox.GetComponentInParent<FoxController>()?.enabled == true)
-                    return fox;
-                break;
-            case 3:
-                GameObject eagle = GameObject.FindGameObjectWithTag("Eagle");
-                if (eagle != null && eagle.GetComponentInParent<EagleAlwaysAirController>()?.enabled == true)
-                    return eagle;
-                break;
-            default:
-                break;
+            if (effect != null)
+                Destroy(effect.gameObject);
         }
-        return null;
     }
 
     /// <summary>
-    /// Forces the puzzle to assemble and disables the parallax effect.
-    /// Typically called when the active character fully enters the correct zone.
+    /// External call to force solve, hide broken object, show pieces,
+    /// snap into place, and destroy any remaining entry effects.
     /// </summary>
     public void EnterCorrectZone()
     {
-        inCorrectZone = true;
-        AssemblePuzzlePieces();
+        inZone = true;
         puzzleSolved = true;
-        enabled = false;
+        PlayEntryEffects();
+
+        if (brokenRoot != null) brokenRoot.SetActive(false);
+
+        for (int i = 0; i < puzzlePieces.Length; i++)
+        {
+            puzzlePieces[i].gameObject.SetActive(true);
+            puzzlePieces[i].localPosition = assembledPositions[i];
+        }
+
+        DestroyEntryEffects();
     }
 
     /// <summary>
-    /// Exits the correct zone, allowing puzzle pieces to be influenced again if unsolved.
+    /// Disables the given ParticleSystem after the specified delay.
     /// </summary>
-    public void ExitCorrectZone()
+    private IEnumerator DisableEffectAfterDelay(ParticleSystem effect, float delay)
     {
-        if (!puzzleSolved)
+        yield return new WaitForSeconds(delay);
+        if (effect != null)
+            effect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    }
+
+    /// <summary>
+    /// Finds the currently active ground-based character.
+    /// </summary>
+    private GameObject GetActiveGround()
+    {
+        if (CameraSwitchManager.Instance == null) return null;
+
+        switch (CameraSwitchManager.Instance.ActivePlayer)
         {
-            inCorrectZone = false;
+            case 1:
+                var player = GameObject.FindGameObjectWithTag("Player");
+                if (player?.GetComponentInParent<ThirdPersonController>()?.enabled == true)
+                    return player;
+                break;
+            case 2:
+                var fox = GameObject.FindGameObjectWithTag("Fox");
+                if (fox?.GetComponentInParent<FoxController>()?.enabled == true)
+                    return fox;
+                break;
+            case 3:
+                var eagle = GameObject.FindGameObjectWithTag("Eagle");
+                if (eagle?.GetComponentInParent<EagleAlwaysAirController>()?.enabled == true)
+                    return eagle;
+                break;
         }
+        return null;
     }
 
     private void OnDrawGizmos()
