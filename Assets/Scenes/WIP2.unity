@@ -18588,8 +18588,6 @@ MonoBehaviour:
     controller: {fileID: 1762682273}
     playerInput: {fileID: 1762682260}
     key: 49
-    isCompanion: 1
-    followController: {fileID: 0}
     switchSound: {fileID: 0}
   - playerID: 3
     camera: {fileID: 1016435884}
@@ -18597,8 +18595,6 @@ MonoBehaviour:
     controller: {fileID: 1218966688150145263}
     playerInput: {fileID: 0}
     key: 51
-    isCompanion: 0
-    followController: {fileID: 6455235603930214511}
     switchSound: {fileID: 8300000, guid: b0ce176d3493c8f4aba4004eb9009859, type: 3}
   - playerID: 2
     camera: {fileID: 1378350898814745129}
@@ -18606,12 +18602,10 @@ MonoBehaviour:
     controller: {fileID: 1164603354658660467}
     playerInput: {fileID: 3053456097634223942}
     key: 50
-    isCompanion: 0
-    followController: {fileID: 8600667448812963341}
     switchSound: {fileID: 8300000, guid: d6addf1ee81c7ce4bbb49a774866c672, type: 3}
   audioSource: {fileID: 1561822583}
-  companionRecallClip: {fileID: 8300000, guid: c645f29afcabe8344ba0b629c0fc5c53, type: 3}
-  companionStayClip: {fileID: 8300000, guid: 1bcf796d67850284e96ec5fe75658446, type: 3}
+  companionRecallClip: {fileID: 0}
+  companionStayClip: {fileID: 0}
 --- !u!114 &749152532
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -18661,9 +18655,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4eb4413919fbb314eba0a90dbb6f025f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  switchManager: {fileID: 0}
-  recallKey: 49
-  stayKey: 52
 --- !u!1001 &751741063
 PrefabInstance:
   m_ObjectHideFlags: 0
