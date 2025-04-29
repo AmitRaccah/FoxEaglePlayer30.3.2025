@@ -12,6 +12,7 @@ namespace StarterAssets
         public Vector2 look;
         public bool jump;
         public bool canSprint = true;
+        public bool canMove = true;
         public bool sprint;
 
         [Header("Movement Settings")]
@@ -54,6 +55,7 @@ namespace StarterAssets
 
         public void MoveInput(Vector2 newMoveDirection)
         {
+            if (canMove)
             move = newMoveDirection;
         }
 
@@ -71,6 +73,8 @@ namespace StarterAssets
         {
             if (canSprint)
                 sprint = newSprintState;
+            else
+                sprint = false;
         }
 
         private void OnApplicationFocus(bool hasFocus)

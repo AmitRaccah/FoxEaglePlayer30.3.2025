@@ -13,6 +13,7 @@ public class SoundTriggerZone : MonoBehaviour
     private IEnumerator WalkOnly()
     {
         playerInputs.canSprint = false;
+        playerInputs.sprint = false;
         while (audioSource.isPlaying)
         {
             yield return null;

@@ -279,6 +279,7 @@ public class CameraSwitchManager : MonoBehaviour
         var input = item.controller.GetComponent<StarterAssetsInputs>();
         if (input != null)
         {
+            
             input.move = Vector2.zero;
             input.sprint = false;
         }

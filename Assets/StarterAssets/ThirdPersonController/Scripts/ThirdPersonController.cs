@@ -73,6 +73,9 @@ namespace StarterAssets
         [Tooltip("For locking the camera position on all axis")]
         public bool LockCameraPosition = false;
 
+
+        private int _animIDSearchMode;
+
         // cinemachine
         private float _cinemachineTargetYaw;
         private float _cinemachineTargetPitch;
@@ -188,6 +191,7 @@ namespace StarterAssets
             _animIDJump = Animator.StringToHash("Jump");
             _animIDFreeFall = Animator.StringToHash("FreeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            _animIDSearchMode = Animator.StringToHash("SearchMode");
         }
 
         private void GroundedCheck()
@@ -403,6 +407,35 @@ namespace StarterAssets
         }
 
         // ------------------- Animation Events -------------------
+
+        // RESET ANIMATOR - RUN/WALK/SEARCH
+
+        private void ResetSearchMode()
+        {
+            searchMode = false;
+            if (_animator != null)
+                _animator.SetBool(_animIDSearchMode, false);
+        }
+
+        private void OnDisable()
+        {
+            ResetSearchMode();
+
+            if (_input != null)
+            {
+                _input.move = Vector2.zero;
+                _input.sprint = false;
+            }
+
+            if (_animator != null)
+            {
+                _animator.SetFloat(_animIDSpeed, 0f);
+                _animator.SetFloat(_animIDMotionSpeed, 0f);
+                _animator.SetBool(_animIDJump, false);
+                _animator.SetBool(_animIDFreeFall, false);
+            }
+        }
+
 
         private void OnFootstep(AnimationEvent animationEvent)
         {
