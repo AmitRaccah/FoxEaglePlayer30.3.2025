@@ -24,7 +24,7 @@ public static class PuzzleUtils
         }
         if (other.CompareTag("Eagle"))
         {
-            var controller = other.GetComponentInParent<EagleAlwaysAirController>();
+            var controller = other.GetComponentInParent<EagleController>();
             return (controller != null && controller.enabled);
         }
         return false;

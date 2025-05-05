@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Linq;
+﻿using System.Linq;
 using UnityEngine;
 using Cinemachine;
 #if ENABLE_INPUT_SYSTEM
@@ -8,7 +6,6 @@ using UnityEngine.InputSystem;
 #endif
 using StarterAssets;
 using StarterAssets.Fox;
-using static UnityEditor.Progress;
 
 public class CameraSwitchManager : MonoBehaviour
 {
@@ -21,24 +18,17 @@ public class CameraSwitchManager : MonoBehaviour
     public int ActivePlayer { get; private set; }
 
     [Header("Audio Settings")]
-    [Tooltip("An AudioSource on this manager (set in the Inspector) for playing switch sounds.")]
     [SerializeField] private AudioSource audioSource;
-
-    [Header("Companion Recall Sound")]
     [SerializeField] private AudioClip companionRecallClip;
-
-    [Header("Companion StayInPlace Sound")]
     [SerializeField] private AudioClip companionStayClip;
 
+    [Header("Hot‑keys (can be changed in Inspector)")]
+    [SerializeField] private KeyCode recallKey = KeyCode.Alpha4;
+    [SerializeField] private KeyCode stayKey = KeyCode.Alpha1;
 
+    private bool _initialised;
 
-    // Cached reference to Player1's StarterAssetsInputs (used to reset movement)
-
-    private bool initialized;
-
-
-
-
+    /* ------------------------------------------------------------------ */
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -52,90 +42,88 @@ public class CameraSwitchManager : MonoBehaviour
 
     private void Start()
     {
-        // Cache Player1's StarterAssetsInputs for quick access.
-
-        initialized = true;
+        _initialised = true;
         TurnOffAllItems();
 
-        // Switch to Player1 by default.
-        ControllerItem playerController = controllerItemArray.FirstOrDefault(item => item.playerID == 1);
-        SwitchToPlayer(playerController);
+        // Default to Player 1
+        ControllerItem playerItem = controllerItemArray.FirstOrDefault(i => i.playerID == 1);
+        if (playerItem != null)
+            SwitchToPlayer(playerItem);
     }
 
     private void Update()
     {
-        if (!initialized) return;
+        if (!_initialised) return;
+
+        /* ---------- Recall / Stay (only allowed if active character is Player) ---------- */
+        if (ActivePlayer == 1)
+        {
+            // Recall – key configurable
+            if (Input.GetKeyDown(recallKey))
+            {
+                foreach (var item in controllerItemArray)
+                {
+                    // Only companions whose key != None are considered UNLOCKED
+                    if (item.playerID == 2) // Fox
+                    {
+                        var foxFollow = item.controller.GetComponent<FoxFollowController>();
+                        if (foxFollow != null && item.key != KeyCode.None)
+                            foxFollow.enabled = true;   // if far it will teleport itself
+                    }
+                    else if (item.playerID == 3) // Eagle
+                    {
+                        var eagleFollow = item.controller.GetComponent<EagleFollowController>();
+                        if (eagleFollow != null && item.key != KeyCode.None)
+                            eagleFollow.enabled = true;
+                    }
+                }
+
+                if (audioSource && companionRecallClip)
+                    audioSource.PlayOneShot(companionRecallClip);
+            }
+
+            // Stay – key configurable
+            if (Input.GetKeyDown(stayKey))
+            {
+                foreach (var item in controllerItemArray)
+                {
+                    if (item.playerID == 2)
+                    {
+                        var foxFollow = item.controller.GetComponent<FoxFollowController>();
+                        if (foxFollow != null && item.key != KeyCode.None)
+                            foxFollow.enabled = false;
+                    }
+                    else if (item.playerID == 3)
+                    {
+                        var eagleFollow = item.controller.GetComponent<EagleFollowController>();
+                        if (eagleFollow != null && item.key != KeyCode.None)
+                            eagleFollow.enabled = false;
+                    }
+                }
+
+                if (audioSource && companionStayClip)
+                    audioSource.PlayOneShot(companionStayClip);
+            }
+        }
+
+        /* ---------- Character switching ---------- */
         if (!Input.anyKeyDown) return;
 
-        // Loop through all controller items and check for a key press.
-        foreach (ControllerItem controllerItem in controllerItemArray)
+        foreach (ControllerItem item in controllerItemArray)
         {
-            if (Input.GetKeyDown(controllerItem.key))
+            if (item.key == KeyCode.None) continue;          // not unlocked yet
+            if (Input.GetKeyDown(item.key))
             {
-                // If already controlling this character
-                if (controllerItem.playerID == ActivePlayer)
-                {
-                    // If it's the main player, play "Stay here" voice line
-                    if (ActivePlayer == 1 && audioSource != null && companionStayClip != null)
-                    {
-                        foreach (var item in controllerItemArray)
-                        {
-                            var foxFollow = item.controller.GetComponent<FoxFollowController>();
-                            if (foxFollow != null)
-                                foxFollow.enabled = false;
+                if (item.playerID == ActivePlayer) return;  // already active
 
-                            var eagleFollow = item.controller.GetComponent<EagleFollowController>();
-                            if (eagleFollow != null)
-                                eagleFollow.enabled = false;
-                        }
-                        audioSource.PlayOneShot(companionStayClip);
-                        Debug.Log("[CameraSwitchManager] Player said: 'Stay here until I’ll tell you otherwise'");
-                    }
-                    // No switch needed
-                    break;
-                }
-                // Regular switch
                 TurnOffAllItems();
-                SwitchToPlayer(controllerItem);
-                break;
+                SwitchToPlayer(item);
+                return;
             }
         }
-
-        // Manual companion return (key 4)
-        if (Input.GetKeyDown(KeyCode.Alpha4) && ActivePlayer == 1)
-        {
-            foreach (var item in controllerItemArray)
-            {
-                if (item.playerID == 2) // Fox
-                {
-                    var foxFollow = item.controller.GetComponent<FoxFollowController>();
-                    if (foxFollow != null)
-                        foxFollow.enabled = true;
-                }
-                else if (item.playerID == 3) // Eagle
-                {
-                    var eagleFollow = item.controller.GetComponent<EagleFollowController>();
-                    if (eagleFollow != null)
-                        eagleFollow.enabled = true;
-                }
-            }
-
-            if (audioSource != null && companionRecallClip != null)
-            {
-                audioSource.PlayOneShot(companionRecallClip);
-            }
-
-            Debug.Log("[CameraSwitchManager] Companions recalled with key 4.");
-        }
-
     }
 
-
-
-    /// <summary>
-    /// Returns the currently active normal camera (n_camera) from the active ControllerItem.
-    /// If none is active, returns null.
-    /// </summary>
+    /* ------------------------------------------------------------------ */
     public static Camera CurrentActiveCamera
     {
         get
@@ -144,44 +132,28 @@ public class CameraSwitchManager : MonoBehaviour
             foreach (var item in Instance.controllerItemArray)
             {
                 if (item.n_camera != null && item.n_camera.gameObject.activeInHierarchy)
-                {
                     return item.n_camera;
-                }
             }
             return null;
         }
     }
 
-    /// <summary>
-    /// Temporarily locks or unlocks input for the current active character.
-    /// </summary>
-    /// 
-    
     public void LockCameraInput(bool lockIt)
     {
-        Debug.Log($"[CameraSwitchManager] LockCameraInput({lockIt}) called. ActivePlayer = {ActivePlayer}");
-        // Find the ControllerItem matching the current active player.
         foreach (var item in controllerItemArray)
         {
-            if (item.playerID != ActivePlayer)
-                continue;
+            if (item.playerID != ActivePlayer) continue;
 
             switch (ActivePlayer)
             {
-                case 1: // Player
-                    if (item.controller is ThirdPersonController tpc)
-                        tpc.enabled = !lockIt;
+                case 1:
+                    if (item.controller is ThirdPersonController tpc) tpc.enabled = !lockIt;
                     break;
-                case 2: // Fox
-                    if (item.controller is FoxController fc)
-                        fc.enabled = !lockIt;
+                case 2:
+                    if (item.controller is FoxController fc) fc.enabled = !lockIt;
                     break;
-                case 3: // Eagle
-                    if (item.controller is EagleAlwaysAirController eagle)
-                        eagle.enabled = !lockIt;
-                    break;
-                default:
-                    Debug.LogWarning($"[CameraSwitchManager] Unknown ActivePlayer ID: {ActivePlayer}");
+                case 3:
+                    if (item.controller is EagleController ec) ec.enabled = !lockIt;
                     break;
             }
 
@@ -201,23 +173,21 @@ public class CameraSwitchManager : MonoBehaviour
                 }
             }
 #endif
-            break; // Found the active item, exit loop.
+            break;
         }
     }
 
-    /// <summary>
-    /// Disables all controller items (sets their virtual camera priority to 10 and disables controllers and input).
-    /// Note: The main camera (n_camera) is left active to avoid "no camera rendering" issues.
-    /// </summary>
+    /* ------------------------------------------------------------------ */
     private void TurnOffAllItems()
     {
         foreach (ControllerItem item in controllerItemArray)
         {
             if (item.camera != null)
                 item.camera.Priority = 10;
-            // We do not disable n_camera to keep the main camera active.
+
             if (item.controller != null)
                 item.controller.enabled = false;
+
 #if ENABLE_INPUT_SYSTEM
             if (item.playerInput != null)
             {
@@ -225,40 +195,50 @@ public class CameraSwitchManager : MonoBehaviour
                 item.playerInput.enabled = false;
             }
 #endif
-            // Re-enable follow behavior on inactive characters.
-            var foxFollow = item.controller.GetComponent<FoxFollowController>();
-            if (foxFollow != null)
-                foxFollow.enabled = false;
-            var eagleFollow = item.controller.GetComponent<EagleFollowController>();
-            if (eagleFollow != null)
-                eagleFollow.enabled = false;
+            if (item.controller != null)
+            {
+                var ff = item.controller.GetComponent<FoxFollowController>();
+                if (ff) ff.enabled = false;
 
-            // Turn off pickup
+                var ef = item.controller.GetComponent<EagleFollowController>();
+                if (ef) ef.enabled = false;
 
-            var pickup = item.controller.GetComponent<PickupInput>();
-            if (pickup != null)
-                pickup.enabled = false;
-
+                var pi = item.controller.GetComponent<PickupInput>();
+                if (pi) pi.enabled = false;
+            }
         }
     }
 
-    /// <summary>
-    /// Switches control to the specified controller item.
-    /// </summary>
     private void SwitchToPlayer(ControllerItem item)
     {
         if (item.camera != null)
             item.camera.Priority = 15;
+
         if (item.n_camera != null)
             item.n_camera.gameObject.SetActive(true);
+
         if (item.controller != null)
             item.controller.enabled = true;
 
-        //Turn on Pickup
-        var pickup = item.controller.GetComponent<PickupInput>();
-        if (pickup != null)
-            pickup.enabled = true;
+        // Enable pickup & disable follow on the active character
+        if (item.controller != null)
+        {
+            var pi = item.controller.GetComponent<PickupInput>();
+            if (pi) pi.enabled = true;
 
+            var ff = item.controller.GetComponent<FoxFollowController>();
+            if (ff) ff.enabled = false;
+
+            var ef = item.controller.GetComponent<EagleFollowController>();
+            if (ef) ef.enabled = false;
+
+            var input = item.controller.GetComponent<StarterAssetsInputs>();
+            if (input != null)
+            {
+                input.move = Vector2.zero;
+                input.sprint = false;
+            }
+        }
 
 #if ENABLE_INPUT_SYSTEM
         if (item.playerInput != null)
@@ -268,29 +248,10 @@ public class CameraSwitchManager : MonoBehaviour
             item.playerInput.SwitchCurrentActionMap("Player");
         }
 #endif
-        // Disable follow controllers on the newly activated character.
-        var foxFollow = item.controller.GetComponent<FoxFollowController>();
-        if (foxFollow != null)
-            foxFollow.enabled = false;
-        var eagleFollow = item.controller.GetComponent<EagleFollowController>();
-        if (eagleFollow != null)
-            eagleFollow.enabled = false;
-        // Clear any residual movement input.
-        var input = item.controller.GetComponent<StarterAssetsInputs>();
-        if (input != null)
-        {
-            
-            input.move = Vector2.zero;
-            input.sprint = false;
-        }
         ActivePlayer = item.playerID;
-        Debug.Log($"[CameraSwitchManager] Switched to playerID = {item.playerID}, controller = {item.controller}");
 
         if (audioSource != null && item.switchSound != null)
-        {
             audioSource.PlayOneShot(item.switchSound);
-        }
-
     }
 }
 

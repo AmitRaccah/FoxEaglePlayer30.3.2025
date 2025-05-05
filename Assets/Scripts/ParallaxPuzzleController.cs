@@ -225,7 +225,7 @@ public class ParallaxPuzzleController : MonoBehaviour
                 break;
             case 3:
                 var eagle = GameObject.FindGameObjectWithTag("Eagle");
-                if (eagle?.GetComponentInParent<EagleAlwaysAirController>()?.enabled == true)
+                if (eagle?.GetComponentInParent<EagleController>()?.enabled == true)
                     return eagle;
                 break;
         }
