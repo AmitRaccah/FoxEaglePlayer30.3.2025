@@ -1,5 +1,4 @@
 ﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -13,107 +12,118 @@ namespace StarterAssets.Fox
 #endif
     public class FoxController : MonoBehaviour
     {
-        #region Public Fields
+        #region Inspector – identity & camera
 
         [Header("Player Identification")]
-        [Tooltip("Unique ID for this character. CameraSwitchManager uses this to determine which character is active.")]
-        public int playerID = 2;
+        [Tooltip("Unique ID read by CameraSwitchManager")] public int playerID = 2;
 
-        [Header("Player Movement Settings")]
-        public float MoveSpeed = 2.0f;
-        public float SprintSpeed = 5.335f;
-        [Range(0f, 0.3f)]
-        public float RotationSmoothTime = 0.12f;
-        public float SpeedChangeRate = 10.0f;
-        [Space(10)]
-        public float JumpHeight = 1.2f;
-        public float Gravity = -15.0f;
-        public float JumpTimeout = 0.50f;
-        public float FallTimeout = 0.15f;
+        [Header("Cinemachine / Camera")]
+        public GameObject cinemachineCameraTarget;
+        public float topClamp = 70f;
+        public float bottomClamp = -30f;
+        public float cameraAngleOffset = 0f;
+        public bool lockCamera = false;
+        public float cameraFollowTurnSpeed = 5f;
+
+        #endregion
+
+        #region Inspector – movement
+
+        [Header("Movement Speeds")]
+        public float moveSpeed = 2f;
+        public float sprintSpeed = 5.335f;
+        [Range(0f, 0.3f)] public float rotationSmoothTime = 0.12f;
+        public float speedChangeRate = 10f;
+        public float pureLateralSpeed = 2f;
+
+        [Header("Jump & Gravity")]
+        public float jumpHeight = 1.2f;
+        public float gravity = -15f;
+        public float jumpTimeout = 0.5f;
+        public float fallTimeout = 0.15f;
+
+        #endregion
+
+        #region Inspector – grounded check
 
         [Header("Grounded Check")]
-        public float GroundedOffset = -0.14f;
-        public float GroundedRadius = 0.28f;
-        public LayerMask GroundLayers;
-        public bool Grounded = true;
+        public float groundedOffset = -0.14f;
+        public float groundedRadius = 0.28f;
+        public LayerMask groundLayers;
+        [HideInInspector] public bool grounded = true;
 
-        [Header("Cinemachine & Camera")]
-        public GameObject CinemachineCameraTarget;
-        public float TopClamp = 70f;
-        public float BottomClamp = -30f;
-        public float CameraAngleOverride = 0f;
-        public bool LockCameraPosition = false;
-        public float CameraFollowTurnSpeed = 5f;
+        #endregion
+
+        #region Inspector – fine‑tune input
 
         [Header("Input Settings")]
         public float deadZone = 0.2f;
         public float mouseLateralMultiplier = 0.5f;
-        public float DiagonalLateralMultiplier = 0.5f;
-
-        [Header("Lateral Movement Settings")]
-        public float PureLateralSpeed = 2.0f;
+        public float diagonalLateralMultiplier = 0.5f;
 
         [Header("Turning Settings")]
-        public float TurnInPlaceThreshold = 90f;
-        public float TurnSpeedReductionStartAngle = 45f;
-        public float TurnSpeedReductionEndAngle = 180f;
-        public float LargeTurnThreshold = 45f;
-        public float LargeTurnSmoothTime = 0.5f;
+        public float turnInPlaceThreshold = 90f;
+        public float turnSpeedReductionStart = 45f;
+        public float turnSpeedReductionEnd = 180f;
+        public float largeTurnThreshold = 45f;
+        public float largeTurnSmoothTime = 0.5f;
 
         [Header("Reverse Movement Settings")]
-        public float ReverseMultiplier = 1.0f;
-        public float ReverseSteeringAngle = 30f;
-        public float ReverseRotationSpeed = 90f;
+        public float reverseMultiplier = 1f;
+        public float reverseSteeringAngle = 30f;
+        public float reverseRotationSpeed = 90f;
 
-        [Header("Biting Settings")]
+        [Header("Attack / Dig Settings")]
         public float biteMovementThreshold = 0.5f;
-        public float biteDuration = 1.0f;
-
-        [Header("Digging Settings")]
+        public float biteDuration = 1f;
         public float digDuration = 1.5f;
 
-        [Header("Gizmo Settings")]
-        public Vector3 gizmoOffset = Vector3.zero;
+        [Header("Gizmos")] public Vector3 gizmoOffset = Vector3.zero;
 
         #endregion
 
-        #region Private Fields
+        #region Private references
 
-        private StarterAssetsInputs _input;
         private CharacterController _controller;
+        private StarterAssetsInputs _input;
         private Animator _animator;
         private GameObject _mainCamera;
 #if ENABLE_INPUT_SYSTEM
         private PlayerInput _playerInput;
 #endif
 
+        #endregion
+
+        #region Private state vars
+
         private float _speed;
         private float _verticalVelocity;
         private float _rotationVelocity;
-        private float _terminalVelocity = 53f;
+        private const float _terminalVelocity = 53f;
+
         private float _jumpTimeoutDelta;
         private float _fallTimeoutDelta;
 
-        private float _cinemachineTargetYaw;
-        private float _cinemachineTargetPitch;
-        private const float _threshold = 0.01f;
+        private float _cinYaw;
+        private float _cinPitch;
+        private const float _inputThreshold = 0.01f;
 
-        // Precomputed animator parameter hashes
-        private int SpeedXHash = Animator.StringToHash("SpeedX");
-        private int SpeedZHash = Animator.StringToHash("SpeedZ");
-        private int IsRunningHash = Animator.StringToHash("IsRunning");
-        private int isGroundedHash = Animator.StringToHash("isGrounded");
-        private int JumpTriggerHash = Animator.StringToHash("JumpTrigger");
-        private int AttackTriggerHash = Animator.StringToHash("AttackTrigger");
-        private int IsDiggingHash = Animator.StringToHash("IsDigging");
+        // animator hashes
+        private static readonly int SpeedXHash = Animator.StringToHash("SpeedX");
+        private static readonly int SpeedZHash = Animator.StringToHash("SpeedZ");
+        private static readonly int IsRunningHash = Animator.StringToHash("IsRunning");
+        private static readonly int IsGroundedHash = Animator.StringToHash("isGrounded");
+        private static readonly int JumpTriggerHash = Animator.StringToHash("JumpTrigger");
+        private static readonly int AttackTrigHash = Animator.StringToHash("AttackTrigger");
+        private static readonly int IsDiggingHash = Animator.StringToHash("IsDigging");
 
-        private bool isBiting = false;
-        private bool isDigging = false;
+        private bool _isBiting;
+        private bool _isDigging;
 
-        private float _smoothedHorizontalInput = 0f;
-        private float _horizontalInputVelocity = 0f;
+        private float _smoothedHorizontal;
+        private float _horizontalVelocity;
 
-        private bool IsCurrentDeviceMouse
+        private bool IsMouseScheme
         {
             get
             {
@@ -127,7 +137,7 @@ namespace StarterAssets.Fox
 
         #endregion
 
-        #region Unity Methods
+        #region Unity lifecycle
 
         private void Awake()
         {
@@ -138,277 +148,192 @@ namespace StarterAssets.Fox
             _playerInput = GetComponent<PlayerInput>();
 #endif
             _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-            if (CinemachineCameraTarget == null)
-            {
-                Debug.LogError("CinemachineCameraTarget is not assigned on FoxController.");
-            }
         }
 
         private void Start()
         {
-            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            _jumpTimeoutDelta = JumpTimeout;
-            _fallTimeoutDelta = FallTimeout;
+            _cinYaw = cinemachineCameraTarget.transform.eulerAngles.y;
+            _jumpTimeoutDelta = jumpTimeout;
+            _fallTimeoutDelta = fallTimeout;
         }
 
         private void Update()
         {
-            // If this fox is not active, zero out look input.
             if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer != playerID)
             {
-                _input.look = Vector2.zero;
+                _input.look = Vector2.zero; // ignore look when not active
             }
 
             GroundedCheck();
             HandleAttack();
             HandleDig();
-            if (isBiting)
-                return;
+            if (_isBiting) return; // lock movement during bite
 
             JumpAndGravity();
             Move();
 
+            // animator sync
             _animator.SetBool(IsRunningHash, _input.sprint && _input.move.y > deadZone);
-            _animator.SetBool(isGroundedHash, Grounded);
-
-            float clampedX = Mathf.Abs(_input.move.x) < deadZone ? 0f : _input.move.x;
-            float clampedZ = Mathf.Abs(_input.move.y) < deadZone ? 0f : _input.move.y;
-            float animForward = clampedZ;
-            float animLateral = clampedX;
-
-            if (_input.move.y > 0)
-            {
-                Vector3 camForward = transform.forward;
-                Vector3 camRight = transform.right;
-                if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer == playerID && _mainCamera != null)
-                {
-                    camForward = _mainCamera.transform.forward;
-                    camForward.y = 0f;
-                    camForward.Normalize();
-                    camRight = _mainCamera.transform.right;
-                    camRight.y = 0f;
-                    camRight.Normalize();
-                    camRight *= (mouseLateralMultiplier * DiagonalLateralMultiplier);
-                }
-                Vector3 desiredDir = (camForward * _input.move.y) + (camRight * _input.move.x);
-                desiredDir.Normalize();
-                float angleDiff = Vector3.Angle(transform.forward, desiredDir);
-                if (!_input.sprint && angleDiff > TurnInPlaceThreshold)
-                {
-                    animForward = 0f;
-                    animLateral = (Mathf.Abs(_input.move.x) < 0.1f) ? (Vector3.Cross(transform.forward, desiredDir).y > 0 ? 1f : -1f) : Mathf.Sign(_input.move.x);
-                }
-            }
-            if (_input.move.y > 0 && CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer == playerID)
-            {
-                if (Mathf.Abs(_input.look.x) > 0.1f)
-                {
-                    animLateral = Mathf.Sign(_input.look.x);
-                }
-            }
-            _animator.SetFloat(SpeedXHash, animLateral);
-            _animator.SetFloat(SpeedZHash, animForward);
+            _animator.SetBool(IsGroundedHash, grounded);
+            UpdateAnimatorBlend();
         }
 
         private void LateUpdate()
         {
             if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer == playerID)
-            {
                 CameraRotation();
-            }
         }
 
         #endregion
 
-        #region Private Methods
+        #region Core mechanics
 
         private void GroundedCheck()
         {
-            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
-            Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
+            Vector3 spherePos = new Vector3(transform.position.x, transform.position.y - groundedOffset, transform.position.z);
+            grounded = Physics.CheckSphere(spherePos, groundedRadius, groundLayers, QueryTriggerInteraction.Ignore);
         }
 
         private void CameraRotation()
         {
-            if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer != playerID)
-                return;
+            if (lockCamera) return;
 
-            float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1f : Time.deltaTime;
-            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
+            float deltaMultiplier = IsMouseScheme ? 1f : Time.deltaTime;
+            if (_input.look.sqrMagnitude >= _inputThreshold)
             {
-                _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
-                _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
+                _cinYaw += _input.look.x * deltaMultiplier;
+                _cinPitch += _input.look.y * deltaMultiplier;
             }
-            if (_input.move.y > 0 && Mathf.Abs(_input.move.x) > deadZone)
-            {
-                _cinemachineTargetYaw = Mathf.LerpAngle(_cinemachineTargetYaw, transform.eulerAngles.y, CameraFollowTurnSpeed * Time.deltaTime);
-            }
-            else if (_input.move.y < 0)
-            {
-                _cinemachineTargetYaw = Mathf.LerpAngle(_cinemachineTargetYaw, transform.eulerAngles.y, CameraFollowTurnSpeed * Time.deltaTime);
-            }
-            _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
-            _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride, _cinemachineTargetYaw, 0f);
+
+            if (_input.move.y != 0)
+                _cinYaw = Mathf.LerpAngle(_cinYaw, transform.eulerAngles.y, cameraFollowTurnSpeed * Time.deltaTime);
+
+            _cinYaw = ClampAngle(_cinYaw, float.MinValue, float.MaxValue);
+            _cinPitch = ClampAngle(_cinPitch, bottomClamp, topClamp);
+
+            cinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinPitch + cameraAngleOffset, _cinYaw, 0f);
         }
 
         private void Move()
         {
-            if (isDigging)
-                return;
+            if (_isDigging) return;
 
-            float effectiveSpeed = 0f;
-            if (!isBiting)
+            float targetSpeed = (_input.sprint && _input.move.y > deadZone) ? sprintSpeed : moveSpeed;
+            if (_input.move == Vector2.zero) targetSpeed = 0f;
+
+            float currentSpeed = new Vector3(_controller.velocity.x, 0f, _controller.velocity.z).magnitude;
+            float speedOffset = 0.1f;
+            float inputMag = _input.analogMovement ? _input.move.magnitude : 1f;
+
+            if (currentSpeed < targetSpeed - speedOffset || currentSpeed > targetSpeed + speedOffset)
             {
-                float targetSpeed = (_input.sprint && _input.move.y > deadZone) ? SprintSpeed : MoveSpeed;
-                if (_input.move == Vector2.zero)
-                    targetSpeed = 0f;
-
-                float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0f, _controller.velocity.z).magnitude;
-                float speedOffset = 0.1f;
-                float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
-
-                if (currentHorizontalSpeed < targetSpeed - speedOffset || currentHorizontalSpeed > targetSpeed + speedOffset)
-                {
-                    _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude, Time.deltaTime * SpeedChangeRate);
-                    _speed = Mathf.Round(_speed * 1000f) / 1000f;
-                }
-                else
-                {
-                    _speed = targetSpeed;
-                }
-                effectiveSpeed = _speed;
+                _speed = Mathf.Lerp(currentSpeed, targetSpeed * inputMag, Time.deltaTime * speedChangeRate);
+                _speed = Mathf.Round(_speed * 1000f) / 1000f; // round for animator
+            }
+            else
+            {
+                _speed = targetSpeed;
             }
 
+            Vector3 moveDir = CalculateMoveDirection(out bool updateRot);
+            if (updateRot && _input.move != Vector2.zero)
+            {
+                float targetRot = Mathf.Atan2(moveDir.x, moveDir.z) * Mathf.Rad2Deg;
+                float smoothT = rotationSmoothTime;
+                if (Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, targetRot)) > largeTurnThreshold)
+                    smoothT = largeTurnSmoothTime;
+                float newRot = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetRot, ref _rotationVelocity, smoothT);
+                transform.rotation = Quaternion.Euler(0f, newRot, 0f);
+            }
+
+            Vector3 velocity = moveDir * (_speed * Time.deltaTime);
+            Vector3 vertical = Vector3.up * _verticalVelocity * Time.deltaTime;
+            _controller.Move(velocity + vertical);
+        }
+
+        private Vector3 CalculateMoveDirection(out bool updateRotation)
+        {
+            updateRotation = true;
             Vector3 moveDir = Vector3.zero;
-            bool updateRotation = true;
 
             if (_input.move.y < 0)
             {
-                moveDir = (Mathf.Abs(_input.move.x) < deadZone) ? -transform.forward : (-transform.forward * Mathf.Abs(_input.move.y)) + (transform.right * _input.move.x);
+                moveDir = (-transform.forward * Mathf.Abs(_input.move.y)) + (transform.right * _input.move.x);
                 moveDir.Normalize();
-                effectiveSpeed *= ReverseMultiplier;
+                _speed *= reverseMultiplier;
 
-                float steering = _input.move.x;
-                float desiredRotation = transform.eulerAngles.y - (steering * ReverseSteeringAngle);
-                float newYRotation = Mathf.MoveTowardsAngle(transform.eulerAngles.y, desiredRotation, ReverseRotationSpeed * Time.deltaTime);
-                transform.eulerAngles = new Vector3(transform.eulerAngles.x, newYRotation, transform.eulerAngles.z);
+                float steer = _input.move.x;
+                float desiredRot = transform.eulerAngles.y - (steer * reverseSteeringAngle);
+                float newY = Mathf.MoveTowardsAngle(transform.eulerAngles.y, desiredRot, reverseRotationSpeed * Time.deltaTime);
+                transform.eulerAngles = new Vector3(0f, newY, 0f);
                 updateRotation = false;
             }
             else if (Mathf.Approximately(_input.move.y, 0f) && Mathf.Abs(_input.move.x) > deadZone)
             {
                 moveDir = transform.right * _input.move.x;
-                effectiveSpeed = PureLateralSpeed;
+                _speed = pureLateralSpeed;
                 updateRotation = false;
             }
             else
             {
-                Vector3 fwd = transform.forward;
-                Vector3 rgt = transform.right;
-                if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer == playerID && _mainCamera != null)
+                Vector3 camFwd = transform.forward;
+                Vector3 camRight = transform.right;
+                if (_mainCamera && CameraSwitchManager.Instance && CameraSwitchManager.Instance.ActivePlayer == playerID)
                 {
-                    fwd = _mainCamera.transform.forward;
-                    fwd.y = 0f;
-                    fwd.Normalize();
-                    rgt = _mainCamera.transform.right;
-                    rgt.y = 0f;
-                    rgt.Normalize();
-                    rgt *= (mouseLateralMultiplier * DiagonalLateralMultiplier);
+                    camFwd = _mainCamera.transform.forward; camFwd.y = 0f; camFwd.Normalize();
+                    camRight = _mainCamera.transform.right; camRight.y = 0f; camRight.Normalize();
+                    camRight *= mouseLateralMultiplier * diagonalLateralMultiplier;
                 }
-                moveDir = (fwd * _input.move.y) + (rgt * _input.move.x);
+                moveDir = camFwd * _input.move.y + camRight * _input.move.x;
                 moveDir.Normalize();
+
                 float angleDiff = Vector3.Angle(transform.forward, moveDir);
-                if (_input.move.y > 0 && angleDiff > TurnInPlaceThreshold && !_input.sprint)
-                    effectiveSpeed = 0f;
-                else if (angleDiff > TurnSpeedReductionStartAngle)
+                if (_input.move.y > 0 && angleDiff > turnInPlaceThreshold && !_input.sprint) _speed = 0f;
+                else if (angleDiff > turnSpeedReductionStart)
                 {
-                    float t = Mathf.Clamp01((TurnSpeedReductionEndAngle - angleDiff) / (TurnSpeedReductionEndAngle - TurnSpeedReductionStartAngle));
-                    effectiveSpeed *= t;
+                    float t = Mathf.Clamp01((turnSpeedReductionEnd - angleDiff) / (turnSpeedReductionEnd - turnSpeedReductionStart));
+                    _speed *= t;
                 }
             }
-
-            if (updateRotation && _input.move != Vector2.zero)
-            {
-                float targetRotation = Mathf.Atan2(moveDir.x, moveDir.z) * Mathf.Rad2Deg;
-                float smoothTime = RotationSmoothTime;
-                if (Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, targetRotation)) > LargeTurnThreshold)
-                    smoothTime = LargeTurnSmoothTime;
-                float newRotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetRotation, ref _rotationVelocity, smoothTime);
-                transform.rotation = Quaternion.Euler(0f, newRotation, 0f);
-            }
-
-            Vector3 velocity = moveDir * (effectiveSpeed * Time.deltaTime);
-            Vector3 verticalMovement = new Vector3(0f, _verticalVelocity, 0f) * Time.deltaTime;
-            _controller.Move(velocity + verticalMovement);
+            return moveDir;
         }
 
         private void JumpAndGravity()
         {
-            if ((_animator && _animator.GetBool(IsDiggingHash)) || isBiting)
-                return;
+            if (_animator.GetBool(IsDiggingHash) || _isBiting) return;
 
-            if (Grounded)
+            if (grounded)
             {
-                _fallTimeoutDelta = FallTimeout;
-                if (_verticalVelocity < 0f)
-                    _verticalVelocity = -2f;
+                _fallTimeoutDelta = fallTimeout;
+                if (_verticalVelocity < 0f) _verticalVelocity = -2f;
 
                 if (_input.jump && _jumpTimeoutDelta <= 0f)
                 {
-                    _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-                    _animator?.SetTrigger(JumpTriggerHash);
+                    _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                    _animator.SetTrigger(JumpTriggerHash);
                     _input.jump = false;
                 }
-                if (_jumpTimeoutDelta >= 0f)
-                    _jumpTimeoutDelta -= Time.deltaTime;
+                if (_jumpTimeoutDelta > 0f) _jumpTimeoutDelta -= Time.deltaTime;
             }
             else
             {
-                _jumpTimeoutDelta = JumpTimeout;
-                if (_fallTimeoutDelta >= 0f)
-                    _fallTimeoutDelta -= Time.deltaTime;
-                _input.jump = false;
+                _jumpTimeoutDelta = jumpTimeout;
+                if (_fallTimeoutDelta > 0f) _fallTimeoutDelta -= Time.deltaTime;
             }
-            if (_verticalVelocity < _terminalVelocity)
-                _verticalVelocity += Gravity * Time.deltaTime;
-        }
-
-        private void HandleDig()
-        {
-            if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer != playerID)
-                return;
-
-            if (Input.GetKey(KeyCode.LeftControl))
-            {
-                isDigging = true;
-                if (_animator)
-                    _animator.SetBool(IsDiggingHash, true);
-                _input.move = Vector2.zero;
-                _input.jump = false;
-            }
-            else
-            {
-                isDigging = false;
-                if (_animator)
-                    _animator.SetBool(IsDiggingHash, false);
-            }
+            if (_verticalVelocity < _terminalVelocity) _verticalVelocity += gravity * Time.deltaTime;
         }
 
         private void HandleAttack()
         {
-            if (CameraSwitchManager.Instance != null && CameraSwitchManager.Instance.ActivePlayer != playerID)
-                return;
+            if (CameraSwitchManager.Instance && CameraSwitchManager.Instance.ActivePlayer != playerID) return;
 
-            if (Input.GetMouseButtonDown(0))
+            if (Input.GetMouseButtonDown(0) && grounded && !_input.sprint && _input.move.magnitude <= biteMovementThreshold)
             {
-                if (Grounded && !_input.sprint && _input.move.magnitude <= biteMovementThreshold)
+                if (!_isBiting)
                 {
-                    if (!isBiting)
-                    {
-                        isBiting = true;
-                        _animator?.SetTrigger(AttackTriggerHash);
-                        StartCoroutine(BiteRoutine());
-                    }
+                    _isBiting = true;
+                    _animator.SetTrigger(AttackTrigHash);
+                    StartCoroutine(BiteRoutine());
                 }
             }
         }
@@ -416,15 +341,50 @@ namespace StarterAssets.Fox
         private IEnumerator BiteRoutine()
         {
             yield return new WaitForSeconds(biteDuration);
-            isBiting = false;
+            _isBiting = false;
+        }
+
+        private void HandleDig()
+        {
+            if (CameraSwitchManager.Instance && CameraSwitchManager.Instance.ActivePlayer != playerID) return;
+
+            if (Input.GetKey(KeyCode.LeftControl))
+            {
+                _isDigging = true;
+                _animator.SetBool(IsDiggingHash, true);
+                _input.move = Vector2.zero; _input.jump = false;
+            }
+            else
+            {
+                _isDigging = false;
+                _animator.SetBool(IsDiggingHash, false);
+            }
+        }
+
+        private void UpdateAnimatorBlend()
+        {
+            float fwd = Mathf.Abs(_input.move.y) < deadZone ? 0f : _input.move.y;
+            float lat = Mathf.Abs(_input.move.x) < deadZone ? 0f : _input.move.x;
+
+            // turn‑in‑place adjustment
+            if (_input.move.y > 0)
+            {
+                Vector3 desired = CalculateMoveDirection(out _);
+                float angleDiff = Vector3.Angle(transform.forward, desired);
+                if (!_input.sprint && angleDiff > turnInPlaceThreshold) { fwd = 0f; lat = Mathf.Sign(_input.move.x); }
+            }
+            if (_input.move.y > 0 && CameraSwitchManager.Instance && CameraSwitchManager.Instance.ActivePlayer == playerID)
+            {
+                if (Mathf.Abs(_input.look.x) > 0.1f) lat = Mathf.Sign(_input.look.x);
+            }
+            _animator.SetFloat(SpeedXHash, lat);
+            _animator.SetFloat(SpeedZHash, fwd);
         }
 
         private static float ClampAngle(float angle, float min, float max)
         {
-            if (angle < -360f)
-                angle += 360f;
-            if (angle > 360f)
-                angle -= 360f;
+            if (angle < -360f) angle += 360f;
+            if (angle > 360f) angle -= 360f;
             return Mathf.Clamp(angle, min, max);
         }
 
@@ -434,10 +394,9 @@ namespace StarterAssets.Fox
 
         private void OnDrawGizmosSelected()
         {
-            Color color = Grounded ? new Color(0, 1, 0, 0.35f) : new Color(1, 0, 0, 0.35f);
-            Gizmos.color = color;
-            Vector3 pos = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
-            Gizmos.DrawSphere(pos, GroundedRadius);
+            Gizmos.color = grounded ? new Color(0, 1, 0, 0.35f) : new Color(1, 0, 0, 0.35f);
+            Vector3 pos = new Vector3(transform.position.x, transform.position.y - groundedOffset, transform.position.z) + gizmoOffset;
+            Gizmos.DrawSphere(pos, groundedRadius);
         }
 
         #endregion
