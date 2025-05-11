@@ -12,7 +12,7 @@ namespace StarterAssets.Fox
 #endif
     public class FoxController : MonoBehaviour
     {
-        #region Inspector – identity & camera
+        #region Inspector – identity & camera
 
         [Header("Player Identification")]
         [Tooltip("Unique ID read by CameraSwitchManager")] public int playerID = 2;
@@ -27,7 +27,7 @@ namespace StarterAssets.Fox
 
         #endregion
 
-        #region Inspector – movement
+        #region Inspector – movement
 
         [Header("Movement Speeds")]
         public float moveSpeed = 2f;
@@ -44,7 +44,7 @@ namespace StarterAssets.Fox
 
         #endregion
 
-        #region Inspector – grounded check
+        #region Inspector – grounded check
 
         [Header("Grounded Check")]
         public float groundedOffset = -0.14f;
@@ -54,7 +54,7 @@ namespace StarterAssets.Fox
 
         #endregion
 
-        #region Inspector – fine‑tune input
+        #region Inspector – fine‑tune input
 
         [Header("Input Settings")]
         public float deadZone = 0.2f;

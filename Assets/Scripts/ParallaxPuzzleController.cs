@@ -211,27 +211,18 @@ public class ParallaxPuzzleController : MonoBehaviour
     {
         if (CameraSwitchManager.Instance == null) return null;
 
-        switch (CameraSwitchManager.Instance.ActivePlayer)
+        var activePlayerID = CameraSwitchManager.Instance.ActivePlayer;
+
+        foreach (var item in CameraSwitchManager.Instance.controllerItemArray)
         {
-            case 1:
-                var player = GameObject.FindGameObjectWithTag("Player");
-                if (player?.GetComponentInParent<ThirdPersonController>()?.enabled == true)
-                    return player;
-                break;
-            case 2:
-                var fox = GameObject.FindGameObjectWithTag("Fox");
-                if (fox?.GetComponentInParent<FoxController>()?.enabled == true)
-                    return fox;
-                break;
-            case 3:
-                var eagle = GameObject.FindGameObjectWithTag("Eagle");
-                if (eagle?.GetComponentInParent<EagleController>()?.enabled == true)
-                    return eagle;
-                break;
+            if (item.playerID == activePlayerID && item.controller.enabled)
+            {
+                return item.controller.gameObject;
+            }
         }
+
         return null;
     }
-
     private void OnDrawGizmos()
     {
         if (correctZoneCenter != null)

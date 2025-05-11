@@ -1,96 +1,141 @@
-﻿// MenuManager.cs
-// Controls the main‑menu overlay, camera swap, music cross‑fade
-// and one‑shot “wake up” animation of the player.
-
+﻿
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using Cinemachine;
 using StarterAssets;
 
 public class MenuManager : MonoBehaviour
 {
-    /* -------------------- inspector -------------------- */
+    /* ------------ Inspector ------------ */
 
     [Header("UI")]
-    [SerializeField] private CanvasGroup menuCanvas;     // CanvasGroup on the menu canvas
-    [SerializeField] private Button playButton;    // “Start / Play” button
+    [SerializeField] private CanvasGroup menuCanvas;
+    [SerializeField] private Button startButton;
 
     [Header("Cameras")]
-    [SerializeField] private CinemachineVirtualCamera mainMenuCam;   // looks at the island
-    [SerializeField] private CinemachineVirtualCamera playerCam;     // follows the player
+    [SerializeField] private CinemachineVirtualCamera mainMenuCam;
+    [SerializeField] private CinemachineVirtualCamera playerCam;
 
     [Header("Audio")]
-    [SerializeField] private AudioSource startMusic;     // menu music (starts at full volume)
-    [SerializeField] private AudioSource levelMusic;     // level loop (starts muted)
+    [SerializeField] private AudioSource startMusic;
+    [SerializeField] private AudioSource levelMusic;
     [SerializeField] private float musicFadeTime = 2f;
 
     [Header("Player")]
-    [SerializeField] private Animator playerAnimator;    // Animator on PlayerArmature
-    [SerializeField] private string wakeTrigger = "Wake";
-    [SerializeField] private float wakeAnimLength = 3f; // seconds
+    [SerializeField] private Animator playerAnimator;     // “WakeUp” is default state
+    [SerializeField] private float wakeClipLength = 3f;
 
-    /* -------------------- life‑cycle -------------------- */
+    [Header("Optional – crosshair canvas")]
+    [SerializeField] private GameObject reticleCanvas;
 
-    private void Awake()
+    /* ------------ Private refs ------------ */
+
+    private ThirdPersonController tpc;
+    private StarterAssetsInputs[] inputScripts;
+    private CameraSwitchManager camManager;
+    private RightClickZoomSwitch[] zoomScripts;
+    private SearchReticleUI[] reticleScripts;
+
+    /* ------------ Awake ------------ */
+
+    void Awake()
     {
-        playButton.onClick.AddListener(() => StartCoroutine(EnterGameRoutine()));
+        /* UI hook */
+        startButton.onClick.AddListener(StartGame);
 
-        // ensure initial audio state
-        startMusic.volume = 1f;
-        levelMusic.volume = 0f;
-        if (!startMusic.isPlaying) startMusic.Play();
-        if (!levelMusic.isPlaying) levelMusic.Play();
+        /* collect gameplay systems */
+        camManager = CameraSwitchManager.Instance;
+        zoomScripts = FindObjectsOfType<RightClickZoomSwitch>(true);
+        reticleScripts = FindObjectsOfType<SearchReticleUI>(true);
+        inputScripts = FindObjectsOfType<StarterAssetsInputs>(true);
+        tpc = playerAnimator.GetComponent<ThirdPersonController>();
+
+        /* disable everything until START is pressed */
+        if (camManager) camManager.enabled = false;
+        foreach (var z in zoomScripts) z.enabled = false;
+        foreach (var r in reticleScripts) r.enabled = false;
+        foreach (var inp in inputScripts) inp.enabled = false;
+        if (tpc) tpc.enabled = false;
+        playerAnimator.enabled = false;               // prevents auto‑playing WakeUp
+        if (reticleCanvas) reticleCanvas.SetActive(false);
+
+        /* camera priorities */
+        if (mainMenuCam) mainMenuCam.Priority = 50;
+        if (playerCam) playerCam.Priority = 10;
+
+        /* menu music */
+        startMusic.volume = 1f; startMusic.Play();
+        levelMusic.volume = 0f; levelMusic.Play();
     }
 
-    /* -------------------- core coroutine -------------------- */
+    /* ------------ Start ------------ */
 
-    private IEnumerator EnterGameRoutine()
+    IEnumerator Start()
     {
-        playButton.interactable = false;
+        yield return null;                            // wait one frame
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        EventSystem.current.SetSelectedGameObject(startButton.gameObject);
+    }
 
-        /* 1 – fade out UI */
-        yield return StartCoroutine(FadeCanvas(1f, 0f, 0.8f));
+    /* ------------ Button entry ------------ */
 
-        /* 2 – camera priority swap (Cinemachine handles blend) */
-        if (mainMenuCam) mainMenuCam.Priority = 5;
-        if (playerCam) playerCam.Priority = 25;
+    public void StartGame() => StartCoroutine(EnterGame());
 
-        /* 3 – cross‑fade music */
+    /* ------------ Intro sequence ------------ */
+
+    IEnumerator EnterGame()
+    {
+        startButton.interactable = false;
+
+        /* fade UI */
+        yield return FadeCanvas(1f, 0f, 0.8f);
+
+        /* camera & music */
+        mainMenuCam.Priority = 5;
+        playerCam.Priority = 25;
         StartCoroutine(FadeAudio(startMusic, 1f, 0f));
         StartCoroutine(FadeAudio(levelMusic, 0f, 1f));
 
-        /* 4 – play wake‑up animation without controller interference */
-        var tpController = playerAnimator.GetComponent<ThirdPersonController>();
-        if (tpController) tpController.enabled = false;
-
-        playerAnimator.applyRootMotion = true;          // if clip contains root motion
-        playerAnimator.SetTrigger(wakeTrigger);
-
-        yield return new WaitForSeconds(wakeAnimLength);
-
+        /* wake‑up clip */
+        playerAnimator.enabled = true;           // now the default state plays
+        if (tpc) tpc.enabled = true;           // enables root‑motion handling
+        playerAnimator.applyRootMotion = true;
+        yield return new WaitForSeconds(wakeClipLength);
         playerAnimator.applyRootMotion = false;
-        if (tpController) tpController.enabled = true;  // restore player control
 
-        /* 5 – disable menu canvas completely */
+        /* enable gameplay systems */
+        foreach (var inp in inputScripts) inp.enabled = true;
+        if (camManager) camManager.enabled = true;
+        foreach (var z in zoomScripts) z.enabled = true;
+        foreach (var r in reticleScripts) r.enabled = true;
+        if (reticleCanvas) reticleCanvas.SetActive(true);
+
+        /* lock cursor for gameplay */
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
         menuCanvas.gameObject.SetActive(false);
     }
 
-    /* -------------------- helpers -------------------- */
+    /* ------------ Helpers ------------ */
 
-    private IEnumerator FadeCanvas(float from, float to, float time)
+    IEnumerator FadeCanvas(float from, float to, float time)
     {
         float t = 0f;
         while (t < time)
         {
             t += Time.deltaTime;
             menuCanvas.alpha = Mathf.Lerp(from, to, t / time);
+            EventSystem.current.SetSelectedGameObject(startButton.gameObject);
             yield return null;
         }
         menuCanvas.alpha = to;
     }
 
-    private IEnumerator FadeAudio(AudioSource src, float from, float to)
+    IEnumerator FadeAudio(AudioSource src, float from, float to)
     {
         float t = 0f;
         while (t < musicFadeTime)

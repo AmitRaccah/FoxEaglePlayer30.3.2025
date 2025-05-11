@@ -14,7 +14,6 @@ public class CameraSwitchManager : MonoBehaviour
     [Tooltip("List of controller items. Each item has a playerID, a Cinemachine virtual camera, a normal camera, a controller, etc.")]
     public ControllerItem[] controllerItemArray;
 
-    [Tooltip("The ID of the currently active player (1 = Player1, 2 = Fox, 0 = Eagle).")]
     public int ActivePlayer { get; private set; }
 
     [Header("Audio Settings")]
@@ -80,6 +79,8 @@ public class CameraSwitchManager : MonoBehaviour
 
                 if (audioSource && companionRecallClip)
                     audioSource.PlayOneShot(companionRecallClip);
+                Debug.Log("[CameraSwitchManager] ▶️ Recall key pressed, about to PlayOneShot");
+
             }
 
             // Stay – key configurable
@@ -268,3 +269,4 @@ public class ControllerItem
     public KeyCode key;
     public AudioClip switchSound;
 }
+
