@@ -14,7 +14,6 @@ public class PickupInput : MonoBehaviour
         pickupController = GetComponent<PickupController>();
         if (pickupController == null)
         {
-            Debug.LogError("[PickupInput] PickupController component not found on this GameObject!");
         }
     }
 
@@ -25,7 +24,7 @@ public class PickupInput : MonoBehaviour
         {
             if (Mouse.current.leftButton.wasPressedThisFrame)
             {
-                Debug.Log("[PickupInput] Left mouse button pressed (new Input System).");
+                
                 pickupController.TogglePickup();
             }
         }

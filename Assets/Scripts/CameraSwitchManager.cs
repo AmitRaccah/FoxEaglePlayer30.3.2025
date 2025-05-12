@@ -79,7 +79,6 @@ public class CameraSwitchManager : MonoBehaviour
 
                 if (audioSource && companionRecallClip)
                     audioSource.PlayOneShot(companionRecallClip);
-                Debug.Log("[CameraSwitchManager] ▶️ Recall key pressed, about to PlayOneShot");
 
             }
 

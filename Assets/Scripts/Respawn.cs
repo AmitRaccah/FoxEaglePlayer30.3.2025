@@ -20,7 +20,6 @@ public class Respawn : MonoBehaviour
         if ((respawnMask.value & (1 << other.gameObject.layer)) == 0)
             return;
 
-        Debug.Log($"[Respawn] {other.name} → teleport");
         Teleport(other.transform.root);          // handle child colliders too
     }
 

@@ -39,7 +39,6 @@ public class DigSpotLegacy : MonoBehaviour
             // Check if the Left Control key was pressed.
             if (Input.GetKeyDown(KeyCode.LeftControl))
             {
-                Debug.Log("Fox dug at the designated spot using Legacy Animation!");
                 alreadyDug = true;
                 StartCoroutine(DoDig());
             }
@@ -53,7 +52,6 @@ public class DigSpotLegacy : MonoBehaviour
 
         if (foundItem == null || spawnPoint == null)
         {
-            Debug.LogWarning("Found item or spawn point not set in DigSpotLegacy script.");
             yield break;
         }
 
