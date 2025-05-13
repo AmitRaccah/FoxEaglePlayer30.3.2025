@@ -24,7 +24,7 @@ public class MenuManager : MonoBehaviour
     [SerializeField] private float musicFadeTime = 2f;
 
     [Header("Player")]
-    [SerializeField] private Animator playerAnimator;     // “WakeUp” is default state
+    [SerializeField] private Animator playerAnimator;    
     [SerializeField] private float wakeClipLength = 3f;
 
     [Header("Optional – crosshair canvas")]
